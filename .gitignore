@@ -24,3 +24,8 @@ coverage/
 # Environment
 .env
 .env.local
+
+#CLAUDE
+CLAUDE.md
+CLAUDE_HANDOFF.md
+.claude/

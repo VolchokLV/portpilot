@@ -2,9 +2,15 @@ import http from 'http';
 import https from 'https';
 import tls from 'tls';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import httpProxy from 'http-proxy';
 import { getProjectByHost, getConfig, getTld, getProjects } from './config.js';
 import { getCertificatePaths, isCAInstalled, generateCertificate } from './ssl.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const logoPath = path.join(__dirname, '../../logo.png');
 
 let httpServer: http.Server | null = null;
 let httpsServer: https.Server | null = null;
@@ -20,6 +26,7 @@ function getErrorPage(projectName: string, projectPort: string | number, project
         <meta charset="utf-8"/>
         <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
         <title>PortPilot - ${projectName} Not Responding</title>
+        <link rel="icon" href="/logo.png" type="image/png" />
         <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
         <script>
           tailwind.config = {
@@ -68,11 +75,7 @@ function getErrorPage(projectName: string, projectPort: string | number, project
         <nav class="absolute top-0 w-full z-50 p-6">
           <div class="max-w-7xl mx-auto flex items-center gap-3">
             <div class="relative w-8 h-8 flex items-center justify-center">
-              <svg class="w-8 h-8 text-white fill-current" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-                <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-                <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-              </svg>
+              <img src="/logo.png" alt="PortPilot" class="w-8 h-8 object-contain" />
             </div>
             <span class="font-bold text-xl tracking-tight">PortPilot</span>
           </div>
@@ -136,7 +139,7 @@ function getErrorPage(projectName: string, projectPort: string | number, project
                 <span class="material-icons text-lg">refresh</span>
                 Refresh Page
               </button>
-              <a href="https://github.com/anthropics/claude-code/issues" target="_blank" class="w-full sm:w-auto bg-transparent border border-border-dark hover:border-gray-600 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors">
+              <a href="https://github.com/VolchokLV/portpilot" target="_blank" class="w-full sm:w-auto bg-transparent border border-border-dark hover:border-gray-600 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors">
                 <span class="material-icons text-lg">help_outline</span>
                 Get Help
               </a>
@@ -156,6 +159,7 @@ function getNotFoundPage(host: string): string {
         <meta charset="utf-8"/>
         <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
         <title>PortPilot - Project Not Found</title>
+        <link rel="icon" href="/logo.png" type="image/png" />
         <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
         <script>
           tailwind.config = {
@@ -204,11 +208,7 @@ function getNotFoundPage(host: string): string {
         <nav class="absolute top-0 w-full z-50 p-6">
           <div class="max-w-7xl mx-auto flex items-center gap-3">
             <div class="relative w-8 h-8 flex items-center justify-center">
-              <svg class="w-8 h-8 text-white fill-current" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-                <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-                <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-              </svg>
+              <img src="/logo.png" alt="PortPilot" class="w-8 h-8 object-contain" />
             </div>
             <span class="font-bold text-xl tracking-tight">PortPilot</span>
           </div>
@@ -294,6 +294,22 @@ function createProxy(): httpProxy {
 function handleRequest(req: http.IncomingMessage, res: http.ServerResponse, options: { httpsRedirect?: boolean } = {}): void {
   const host = req.headers.host?.split(':')[0] || '';
   const project = getProjectByHost(host);
+  
+  // Serve logo.png if requested
+  if (req.url === '/logo.png') {
+    if (fs.existsSync(logoPath)) {
+      const logoData = fs.readFileSync(logoPath);
+      const ext = path.extname(logoPath).toLowerCase();
+      const contentType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/svg+xml';
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(logoData);
+      return;
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Logo not found');
+      return;
+    }
+  }
   
   // Redirect HTTP to HTTPS if enabled and SSL is set up
   if (options.httpsRedirect && httpsServer) {
