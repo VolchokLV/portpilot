@@ -106,24 +106,6 @@ portpilot proxy logs        # View proxy logs
 portpilot proxy --https-redirect  # Force HTTP to HTTPS redirect
 ```
 
-### PM2 Integration (Optional)
-
-For auto-restart on crash and auto-start on boot, use PM2:
-
-```bash
-# First, install PM2 globally
-npm install -g pm2
-
-# Then use these commands
-portpilot pm2 setup      # Check PM2 installation
-portpilot pm2 start      # Start proxy via PM2
-portpilot pm2 stop       # Stop PM2-managed proxy
-portpilot pm2 restart    # Restart the proxy
-portpilot pm2 status     # Show PM2 process status
-portpilot pm2 logs       # View logs (live)
-portpilot pm2 startup    # Instructions for auto-start on boot
-```
-
 ### Utilities
 
 ```bash

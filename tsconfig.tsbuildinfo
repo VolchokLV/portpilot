@@ -1,0 +1,1 @@
+{"root":["./src/cli/index.ts","./src/core/config.ts","./src/core/daemon.ts","./src/core/framework.ts","./src/core/hosts.ts","./src/core/index.ts","./src/core/process.ts","./src/core/proxy.ts","./src/core/ssl.ts","./src/service/index.ts","./src/types/index.ts"],"version":"5.9.3"}

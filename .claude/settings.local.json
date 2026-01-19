@@ -5,7 +5,18 @@
       "Bash(npm run build:*)",
       "Bash(npx tsc:*)",
       "Bash(./node_modules/.bin/tsc:*)",
-      "Bash(cmd.exe /c \"npm run build 2>&1\")"
+      "Bash(cmd.exe /c \"npm run build 2>&1\")",
+      "Bash(npm pack:*)",
+      "Bash(ls:*)",
+      "Bash(powershell.exe -Command \"cd ''d:\\\\projects\\\\port-pilot''; npm pack\")",
+      "Bash(powershell.exe -Command \"cd ''d:\\\\projects\\\\port-pilot''; npm install -g ./portpilot-0.1.0.tgz\")",
+      "Bash(powershell.exe -Command \"portpilot --help\")",
+      "Bash(powershell.exe -Command \"pp --version\")",
+      "Bash(powershell.exe -Command \"portpilot list\")",
+      "Bash(powershell.exe -Command \"Remove-Item ''d:\\\\projects\\\\port-pilot\\\\portpilot-0.1.0.tgz''\")",
+      "WebSearch",
+      "Bash(echo:*)",
+      "Bash(dir)"
     ]
   }
 }

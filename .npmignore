@@ -1,0 +1,32 @@
+# Source files (don't publish TypeScript source)
+src/
+tsconfig.json
+
+# Development files
+.gitignore
+.vscode/
+.idea/
+*.log
+coverage/
+.env
+.env.local
+
+# Git files
+.git/
+.github/
+
+# Documentation for development (keep README.md)
+CLAUDE.md
+CLAUDE_HANDOFF.md
+RELEASE_PLAN.md
+
+# Build artifacts we don't need
+*.tsbuildinfo
+
+# Test files
+*.tgz
+
+# Misc
+portpilot-banner-logo.png
+stitch_portpilot_landing_page.zip
+stitch_portpilot_landing_page/
