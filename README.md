@@ -1,8 +1,7 @@
 # PortPilot
 
-Local development server manager for Node.js projects. Pretty URLs for your dev projects - no more remembering ports.
+ *** Put your local dev servers on autopilot — clean .test domains with HTTPS, zero port management for Next.js, Vite, React, and any Node.js project. ***
 
-**Think Laravel Herd/Valet, but for Next.js, Vite, React, and any Node.js project.**
 
 ## The Problem
 
@@ -31,8 +30,10 @@ portpilot start my-store
 ## Installation
 
 ```bash
-npm install -g portpilot
+npm install -g port-pilot
 ```
+
+> **Tip:** Use `pp` as a shorthand for `portpilot` — e.g., `pp ls`, `pp start myapp -d`
 
 ### First Time Setup
 
@@ -223,22 +224,12 @@ portpilot proxy -d
 ## Development
 
 ```bash
-git clone https://github.com/yourusername/portpilot
+git clone https://github.com/volchoklv/portpilot
 cd portpilot
 npm install
 npm run build
 npm link  # Makes 'portpilot' command available globally
 ```
-
-## Roadmap
-
-- [x] HTTPS with auto-certificates (mkcert)
-- [x] Project logs viewer
-- [x] Auto-start on boot (via PM2 integration)
-- [ ] System tray GUI (Tauri/Electron)
-- [ ] Windows Service installer
-- [ ] Team config sharing
-- [ ] Multiple TLDs support
 
 ## License
 

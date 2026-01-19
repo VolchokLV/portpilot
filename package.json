@@ -1,7 +1,7 @@
 {
-  "name": "portpilot",
+  "name": "@volchoklv/portpilot",
   "version": "0.1.0",
-  "description": "Local development server manager - pretty URLs for your dev projects",
+  "description": "Put your local dev servers on autopilot — clean .test domains with HTTPS, zero port management for Next.js, Vite, React, and any Node.js project.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -34,7 +34,7 @@
     "type": "git",
     "url": "git+https://github.com/VolchokLV/portpilot.git"
   },
-  "homepage": "https://github.com/VolchokLV/portpilot#readme",
+  "homepage": "https://portpilot.dev",
   "bugs": {
     "url": "https://github.com/VolchokLV/portpilot/issues"
   },
