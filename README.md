@@ -30,7 +30,7 @@ portpilot start my-store
 ## Installation
 
 ```bash
-npm install -g port-pilot
+npm install -g @volchoklv/portpilot
 ```
 
 > **Tip:** Use `pp` as a shorthand for `portpilot` — e.g., `pp ls`, `pp start myapp -d`
