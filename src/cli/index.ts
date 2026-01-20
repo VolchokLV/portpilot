@@ -64,7 +64,7 @@ program
   .command('init')
   .description('Initialize PortPilot with HTTPS support (downloads mkcert, installs CA)')
   .action(async () => {
-    console.log(chalk.cyan.bold('\n🚢 PortPilot Setup\n'));
+    console.log(chalk.cyan.bold('\n✈️ PortPilot Setup\n'));
     
     // Step 1: Download mkcert
     let spinner = ora('Checking mkcert...').start();
@@ -806,7 +806,7 @@ program
     const sslStatus = getSSLStatus();
     const proxyStatus = isProxyDaemonRunning();
     
-    console.log(chalk.cyan.bold('\n🚢 PortPilot Status\n'));
+    console.log(chalk.cyan.bold('\n✈️ PortPilot Status\n'));
     
     console.log(chalk.dim('Config file:'), getConfigPath());
     console.log(chalk.dim('TLD:'), `.${tld}`);
