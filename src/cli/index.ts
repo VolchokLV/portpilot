@@ -16,6 +16,9 @@ import {
   getProjectByNameOrId,
   getProjectId,
   getTld,
+  setTld,
+  getAllowDots,
+  setAllowDots,
   getConfigPath,
 } from '../core/config.js';
 import {
@@ -57,14 +60,22 @@ const packageJson = JSON.parse(
 program
   .name('portpilot')
   .description('Local development server manager - pretty URLs for your dev projects')
-  .version(packageJson.version);
+  .version(packageJson.version, '-v, --version');
 
 // ============ INIT COMMAND ============
 program
   .command('init')
   .description('Initialize PortPilot with HTTPS support (downloads mkcert, installs CA)')
-  .action(async () => {
+  .option('--tld <tld>', 'Set custom TLD (default: test)')
+  .action(async (options: { tld?: string }) => {
     console.log(chalk.cyan.bold('\n✈️ PortPilot Setup\n'));
+
+    // Set custom TLD if provided
+    if (options.tld) {
+      const cleanTld = options.tld.replace(/^\./, ''); // Remove leading dot if present
+      setTld(cleanTld);
+      console.log(chalk.dim(`  TLD set to: .${cleanTld}\n`));
+    }
     
     // Step 1: Download mkcert
     let spinner = ora('Checking mkcert...').start();
@@ -88,26 +99,36 @@ program
     
     // Step 2: Install CA
     spinner = ora('Installing local Certificate Authority...').start();
-    
+
     if (isCAInstalled()) {
       spinner.succeed('CA already installed');
     } else {
-      spinner.text = 'Installing CA (may require admin password)...';
-      
+      // On macOS, stop spinner before sudo prompt to avoid UX confusion
+      if (process.platform === 'darwin') {
+        spinner.stop();
+        console.log(chalk.yellow('\nAdmin password required for CA installation:'));
+      } else {
+        spinner.text = 'Installing CA (may require admin password)...';
+      }
+
       const caResult = installCA();
-      
+
       if (!caResult.success) {
         if (caResult.requiresAdmin) {
-          spinner.warn('CA installation requires admin privileges');
+          console.log(chalk.yellow('CA installation requires admin privileges'));
           console.log(chalk.yellow('\nPlease run as Administrator and try again:'));
           console.log(chalk.cyan('  portpilot init\n'));
         } else {
-          spinner.fail(`Failed to install CA: ${caResult.error}`);
+          console.log(chalk.red(`✗ Failed to install CA: ${caResult.error}`));
         }
         process.exit(1);
       }
-      
-      spinner.succeed('CA installed and trusted');
+
+      if (process.platform === 'darwin') {
+        console.log(chalk.green('✓ CA installed and trusted'));
+      } else {
+        spinner.succeed('CA installed and trusted');
+      }
     }
     
     // Step 3: Generate certs for all registered projects
@@ -172,8 +193,10 @@ program
     }
 
     // Generate or sanitize name
+    const tld = getTld();
+    const allowDots = getAllowDots();
     const projectName = name
-      ? sanitizeProjectName(name)
+      ? sanitizeProjectName(name, { tld, allowDots })
       : suggestProjectName(projectPath);
 
     if (!projectName) {
@@ -209,9 +232,7 @@ program
       } else {
         spinner.succeed(`Project ${chalk.cyan(projectName)} registered!`);
       }
-      
-      const tld = getTld();
-      
+
       // Generate SSL cert if CA is installed
       if (isCAInstalled()) {
         const domain = `${projectName}.${tld}`;
@@ -836,22 +857,86 @@ program
     console.log('');
   });
 
+// ============ CONFIG COMMAND ============
+program
+  .command('config')
+  .description('View or modify PortPilot configuration')
+  .option('--tld <tld>', 'Change the TLD (requires hosts sync)')
+  .option('--allow-dots', 'Allow dots in project names')
+  .option('--no-allow-dots', 'Disallow dots in project names')
+  .action((options: { tld?: string; allowDots?: boolean }) => {
+    const hasOptions = options.tld !== undefined || options.allowDots !== undefined;
+
+    // If --tld is provided, update TLD
+    if (options.tld) {
+      const cleanTld = options.tld.replace(/^\./, '');
+      setTld(cleanTld);
+      console.log(chalk.green(`✓ TLD changed to .${cleanTld}`));
+      console.log(chalk.yellow('  Run "portpilot sync" to update hosts file'));
+    }
+
+    // Handle --allow-dots / --no-allow-dots
+    if (options.allowDots !== undefined) {
+      setAllowDots(options.allowDots);
+      if (options.allowDots) {
+        console.log(chalk.green('✓ Dots in project names: enabled'));
+      } else {
+        console.log(chalk.green('✓ Dots in project names: disabled'));
+      }
+    }
+
+    // If no options provided, display current config
+    if (!hasOptions) {
+      const tld = getTld();
+      const allowDots = getAllowDots();
+      const projects = getProjects();
+
+      console.log(chalk.cyan.bold('\n✈️ PortPilot Configuration\n'));
+      console.log(chalk.dim('Config file:'), getConfigPath());
+      console.log(chalk.dim('TLD:'), `.${tld}`);
+      console.log(chalk.dim('Allow dots in names:'), allowDots ? 'yes' : 'no');
+      console.log(chalk.dim('Registered projects:'), projects.length);
+      console.log('');
+      console.log(chalk.dim('Options:'));
+      console.log(chalk.dim('  --tld <value>      Change TLD (e.g., --tld dev)'));
+      console.log(chalk.dim('  --allow-dots       Enable dots in project names'));
+      console.log(chalk.dim('  --no-allow-dots    Disable dots in project names'));
+      console.log('');
+    }
+  });
+
 // ============ HOSTS SYNC COMMAND ============
 program
   .command('sync')
   .description('Sync hosts file with registered projects')
   .action(() => {
-    const spinner = ora('Syncing hosts file...').start();
-    
+    const hostsPerms = checkHostsPermissions();
+    let spinner: ReturnType<typeof ora> | null = null;
+
+    // On macOS, if elevation required, show message before sudo prompt
+    if (process.platform === 'darwin' && hostsPerms.requiresElevation) {
+      console.log(chalk.yellow('\nAdmin password required for hosts file update:'));
+    } else {
+      spinner = ora('Syncing hosts file...').start();
+    }
+
     const result = updateHostsFile();
-    
+
     if (!result.success) {
-      spinner.fail(`Failed to update hosts file: ${result.error}`);
+      if (spinner) {
+        spinner.fail(`Failed to update hosts file: ${result.error}`);
+      } else {
+        console.log(chalk.red(`✗ Failed to update hosts file: ${result.error}`));
+      }
       console.log(chalk.yellow('Try running as administrator.'));
       process.exit(1);
     }
-    
-    spinner.succeed('Hosts file synced');
+
+    if (spinner) {
+      spinner.succeed('Hosts file synced');
+    } else {
+      console.log(chalk.green('✓ Hosts file synced'));
+    }
   });
 
 program.parse();

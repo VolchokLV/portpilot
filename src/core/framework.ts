@@ -63,10 +63,23 @@ export function validateProjectPath(projectPath: string): { valid: boolean; erro
   return { valid: true };
 }
 
-export function sanitizeProjectName(name: string): string {
-  return name
+export function sanitizeProjectName(name: string, options?: { tld?: string; allowDots?: boolean }): string {
+  let cleanName = name;
+
+  // Strip TLD suffix if present (e.g., "myapp.test" -> "myapp")
+  if (options?.tld) {
+    const tldSuffix = `.${options.tld}`;
+    if (cleanName.toLowerCase().endsWith(tldSuffix)) {
+      cleanName = cleanName.slice(0, -tldSuffix.length);
+    }
+  }
+
+  // Define invalid characters based on allowDots setting
+  const invalidChars = options?.allowDots ? /[^a-z0-9.-]/g : /[^a-z0-9-]/g;
+
+  return cleanName
     .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
+    .replace(invalidChars, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }

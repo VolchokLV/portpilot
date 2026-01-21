@@ -13,6 +13,7 @@ export function getConfig(): PortPilotConfig {
     tld: config.get('tld'),
     proxyPort: config.get('proxyPort'),
     autoStart: config.get('autoStart'),
+    allowDotsInNames: config.get('allowDotsInNames'),
   };
 }
 
@@ -141,6 +142,14 @@ export function getTld(): string {
 
 export function setTld(tld: string): void {
   config.set('tld', tld);
+}
+
+export function getAllowDots(): boolean {
+  return config.get('allowDotsInNames') ?? false;
+}
+
+export function setAllowDots(allow: boolean): void {
+  config.set('allowDotsInNames', allow);
 }
 
 export function getConfigPath(): string {

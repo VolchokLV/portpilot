@@ -136,13 +136,14 @@ export function checkHostsPermissions(): { canWrite: boolean; requiresElevation:
 export function getHostsEntries(): string[] {
   const content = getExistingHostsContent();
   const tld = getTld();
-  const regex = new RegExp(`127\\.0\\.0\\.1\\s+([\\w-]+)\\.${tld}`, 'g');
-  
+  // Support project names with dots (e.g., emojicopy.com.test)
+  const regex = new RegExp(`127\\.0\\.0\\.1\\s+([\\w.-]+)\\.${tld}`, 'g');
+
   const entries: string[] = [];
   let match;
   while ((match = regex.exec(content)) !== null) {
     entries.push(match[1]);
   }
-  
+
   return entries;
 }

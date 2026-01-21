@@ -5,9 +5,9 @@
 
 ## The Problem
 
-Every project defaults to `localhost:3000`. You end up:
+Every dev server defaults to its own port (Next.js: 3000, Vite: 5173, etc.). You end up:
 
-- Manually changing ports in `package.json`
+- Manually changing ports to avoid conflicts
 - Forgetting which port maps to which project
 - Accidentally killing the wrong dev server
 - Never having a clean URL for local development
@@ -54,8 +54,18 @@ portpilot sync
 
 ```bash
 portpilot init              # Download mkcert, install CA, generate SSL certs
+portpilot init --tld dev    # Initialize with custom TLD (e.g., .dev instead of .test)
 portpilot status            # Show config, SSL status, proxy status
 portpilot sync              # Sync hosts file with registered projects
+```
+
+### Configuration
+
+```bash
+portpilot config              # View current configuration
+portpilot config --tld dev    # Change TLD to .dev (run sync afterward)
+portpilot config --allow-dots # Allow dots in project names (e.g., emojicopy.com)
+portpilot config --no-allow-dots  # Disallow dots in project names (default)
 ```
 
 ### Project Management
@@ -176,7 +186,7 @@ portpilot add my-app --command "npm run serve -- --port {port}"
 
 Config is stored at:
 
-- Windows: `%APPDATA%/portpilot-nodejs/config.json`
+- Windows: `%APPDATA%/portpilot-nodejs/config/config.json`
 - macOS: `~/Library/Application Support/portpilot-nodejs/config.json`
 - Linux: `~/.config/portpilot-nodejs/config.json`
 

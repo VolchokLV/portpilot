@@ -19,6 +19,7 @@ export interface PortPilotConfig {
   tld: string; // Default: 'test'
   proxyPort: number; // Default: 80
   autoStart: boolean; // Start projects on service boot
+  allowDotsInNames?: boolean; // Allow dots in project names (default: false)
 }
 
 export interface ProjectWithStatus extends Project {
@@ -31,6 +32,7 @@ export const DEFAULT_CONFIG: PortPilotConfig = {
   tld: 'test',
   proxyPort: 80,
   autoStart: false,
+  allowDotsInNames: false,
 };
 
 // Framework detection patterns
