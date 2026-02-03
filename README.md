@@ -183,12 +183,12 @@ portpilot add my-app --command "npm run serve -- --port {port}"
 ```
 
 ## Configuration
-
+pp ls
 Config is stored at:
 
-- Windows: `%APPDATA%/portpilot-nodejs/config/config.json`
-- macOS: `~/Library/Application Support/portpilot-nodejs/config.json`
-- Linux: `~/.config/portpilot-nodejs/config.json`
+- Windows: `%APPDATA%/Roaming/portpilot-nodejs/Config/config.json`
+- macOS: `~/Library/Preferences/portpilot-nodejs/config.json`
+- Linux: `~/user/.config/portpilot-nodejs/config.json`
 
 SSL certificates are stored in `~/.portpilot/certs/`.
 
@@ -241,6 +241,17 @@ npm run build
 npm link  # Makes 'portpilot' command available globally
 ```
 
+## Author
+
+**Volchok** - [volchok.dev](https://volchok.dev)
+
 ## License
 
 MIT
+
+## Links
+
+- [PortPilot](https://portpilot.dev) - Create and manage Instagram feeds
+- [Documentation](https://portpilot.dev/docs)
+- [GitHub Repository](https://github.com/VolchokLV/portpilot)
+- [NPM Package](https://www.npmjs.com/package/@volchoklv/portpilot)

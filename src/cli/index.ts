@@ -60,7 +60,8 @@ const packageJson = JSON.parse(
 program
   .name('portpilot')
   .description('Local development server manager - pretty URLs for your dev projects')
-  .version(packageJson.version, '-v, --version');
+  .version(packageJson.version, '-v, --version')
+  .addHelpText('after', '\nTip: Run "portpilot <command> --help" for options on a specific command.');
 
 // ============ INIT COMMAND ============
 program

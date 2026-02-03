@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2025-02-03
+
+### Improved
+- Added help tip to main `--help` output showing how to get command-specific help
+
 ## [0.2.0] - 2025-01-21
 
 ### Added
