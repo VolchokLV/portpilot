@@ -1,7 +1,6 @@
 # PortPilot
 
- *** Put your local dev servers on autopilot — clean .test domains with HTTPS, zero port management for Next.js, Vite, React, and any Node.js project. ***
-
+**_ Put your local dev servers on autopilot — clean .test domains with HTTPS, zero port management for Next.js, Vite, React, and any Node.js project. _**
 
 ## The Problem
 
@@ -57,6 +56,18 @@ portpilot init              # Download mkcert, install CA, generate SSL certs
 portpilot init --tld dev    # Initialize with custom TLD (e.g., .dev instead of .test)
 portpilot status            # Show config, SSL status, proxy status
 portpilot sync              # Sync hosts file with registered projects
+```
+
+### Help
+
+```bash
+portpilot --help              # Show all available commands
+portpilot <command> --help    # Show options for a specific command
+
+# Examples
+portpilot add --help          # Show options for 'add' command
+portpilot start --help        # Show options for 'start' command
+portpilot proxy --help        # Show options for 'proxy' command
 ```
 
 ### Configuration
@@ -134,6 +145,7 @@ portpilot stop
 portpilot restart
 portpilot logs
 portpilot open
+portpilot help
 ```
 
 ## How It Works
@@ -183,6 +195,7 @@ portpilot add my-app --command "npm run serve -- --port {port}"
 ```
 
 ## Configuration
+
 pp ls
 Config is stored at:
 
