@@ -9,3 +9,4 @@
   - CRA no longer uses `PORT={port}` shell prefix (broken on Windows); PORT env var is used
 - Verified: npm run build + npx tsc --noEmit pass; detection/command output checked with a scratch script
 - Docs: README, CHANGELOG.md, CLAUDE.md updated
+- Release prep: bumped to v0.3.0 (package.json + package-lock.json), CHANGELOG dated, added pnpm/yarn/bun keywords

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-09-14
 
 ### Added
 - pnpm, yarn and bun support: the package manager is auto-detected from the `packageManager` field in `package.json` or a lockfile (including parent directories for monorepos), falling back to npm

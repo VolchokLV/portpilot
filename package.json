@@ -1,6 +1,6 @@
 {
   "name": "@volchoklv/portpilot",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Put your local dev servers on autopilot — clean .test domains with HTTPS, zero port management for Next.js, Vite, React, and any Node.js project.",
   "type": "module",
   "main": "dist/index.js",
@@ -21,6 +21,9 @@
     "proxy",
     "nextjs",
     "vite",
+    "pnpm",
+    "yarn",
+    "bun",
     "dev-server",
     "local-development",
     "reverse-proxy",
