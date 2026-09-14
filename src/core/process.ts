@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import { Project, ProjectWithStatus } from '../types/index.js';
 import { getProjects, setProjectPid, getProjectByName } from './config.js';
-import { getDevCommand } from './framework.js';
+import { getDevCommand, detectPackageManager } from './framework.js';
 
 // In-memory tracking for current session
 const runningProcesses = new Map<string, ChildProcess>();
@@ -108,7 +108,8 @@ export async function startProject(
     return { success: false, error: `Project path no longer exists: ${project.path}` };
   }
   
-  const command = getDevCommand(project.framework, project.port, project.command);
+  const packageManager = project.packageManager ?? detectPackageManager(project.path);
+  const command = getDevCommand(project.framework, project.port, project.command, packageManager);
   const [cmd, ...args] = command.split(' ');
   
   try {

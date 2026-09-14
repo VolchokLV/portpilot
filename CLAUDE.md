@@ -26,7 +26,7 @@ CLI (src/cli/index.ts)
     ↓
 Core Modules (src/core/)
 ├── config.ts      → Config persistence via 'conf' package
-├── framework.ts   → Framework detection (Next.js, Vite, CRA, Remix, Astro)
+├── framework.ts   → Framework + package manager detection (npm, pnpm, yarn, bun), dev command building
 ├── hosts.ts       → System hosts file manipulation
 ├── process.ts     → Dev server process lifecycle (spawn/kill)
 └── proxy.ts       → HTTP reverse proxy with WebSocket support
@@ -47,6 +47,7 @@ Core types are in `src/types/index.ts`:
 - `PortPilotConfig` - app config (projects array, nextPort, tld, proxyPort, autoStart)
 - `ProjectStatus` - 'running' | 'stopped' | 'error'
 - `Framework` - 'next' | 'vite' | 'cra' | 'remix' | 'astro' | 'custom'
+- `PackageManager` - 'npm' | 'pnpm' | 'yarn' | 'bun'
 
 ## Important Implementation Details
 
@@ -55,6 +56,7 @@ Core types are in `src/types/index.ts`:
 - **PID Persistence**: PIDs stored both in config and as files in `~/.portpilot/pids/` for recovery
 - **Hosts File Isolation**: Uses marker comments (`# PortPilot Start/End`) to isolate managed entries
 - **Cross-Platform Elevation**: Windows uses PowerShell elevation, macOS/Linux use sudo for hosts file
+- **Package Managers**: Detected at start time (not stored) via `package.json` `packageManager` field, then lockfiles walking up parent dirs, default npm. `Project.packageManager` is an optional override (`add --pm`). Only npm gets `--` before forwarded args; pnpm would pass a literal `--` through
 - **WebSocket Proxying**: Proxy includes upgrade handlers to support HMR connections
 
 ## Configuration Storage

@@ -86,6 +86,7 @@ portpilot add [name]                    # Register current directory
 portpilot add myapp -p /path/to/project # Register specific path
 portpilot add myapp --port 4000         # Use a specific port
 portpilot add myapp -c "custom command" # Use custom dev command
+portpilot add myapp --pm pnpm           # Force a package manager (npm, pnpm, yarn, bun)
 portpilot remove <name|id>              # Unregister project (alias: rm)
 portpilot list                          # Show all projects with ID and status (alias: ls)
 ```
@@ -180,18 +181,33 @@ portpilot help
 
 PortPilot auto-detects and configures:
 
-| Framework        | Detection               | Dev Command                    |
+| Framework        | Detection               | Dev Command (npm)              |
 | ---------------- | ----------------------- | ------------------------------ |
 | Next.js          | `next.config.*`         | `npm run dev -- -p {port}`     |
 | Vite             | `vite.config.*`         | `npm run dev -- --port {port}` |
-| Create React App | `react-scripts` in deps | `PORT={port} npm start`        |
+| Create React App | `react-scripts` in deps | `npm run start` (`PORT` env)   |
 | Remix            | `remix.config.js`       | `npm run dev -- --port {port}` |
 | Astro            | `astro.config.*`        | `npm run dev -- --port {port}` |
 
-For other setups, use a custom command:
+### Package Managers
+
+PortPilot runs the dev script with the package manager your project uses (npm, pnpm, yarn or bun), detected each time the project starts:
+
+1. The `packageManager` field in `package.json` (e.g. `"pnpm@9.1.0"`)
+2. A lockfile in the project or any parent directory (`pnpm-lock.yaml`, `bun.lock`/`bun.lockb`, `yarn.lock`, `package-lock.json`), so monorepo packages work too
+3. Falls back to npm
+
+With pnpm, yarn or bun the port args are passed without `--`, e.g. `pnpm run dev -p {port}`. To force a specific manager:
+
+```bash
+portpilot add my-app --pm pnpm
+```
+
+For other setups, use a custom command (`{pm}` is replaced with the detected package manager):
 
 ```bash
 portpilot add my-app --command "npm run serve -- --port {port}"
+portpilot add my-app --command "{pm} run serve --port {port}"
 ```
 
 ## Configuration

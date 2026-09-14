@@ -23,6 +23,8 @@ import {
 } from '../core/config.js';
 import {
   detectFramework,
+  detectPackageManager,
+  isPackageManager,
   validateProjectPath,
   sanitizeProjectName,
   suggestProjectName,
@@ -183,7 +185,8 @@ program
   .option('-p, --path <path>', 'Path to project (defaults to current directory)')
   .option('-c, --command <command>', 'Custom dev command (use {port} placeholder)')
   .option('--port <number>', 'Specify a custom port (default: auto-assigned)')
-  .action(async (name: string | undefined, options: { path?: string; command?: string; port?: string }) => {
+  .option('--pm <manager>', 'Package manager: npm, pnpm, yarn, bun (default: auto-detected)')
+  .action(async (name: string | undefined, options: { path?: string; command?: string; port?: string; pm?: string }) => {
     const projectPath = path.resolve(options.path || process.cwd());
 
     // Validate project path
@@ -212,6 +215,12 @@ program
       process.exit(1);
     }
 
+    // Validate package manager if specified
+    if (options.pm && !isPackageManager(options.pm)) {
+      console.error(chalk.red('✗ Invalid package manager. Must be one of: npm, pnpm, yarn, bun.'));
+      process.exit(1);
+    }
+
     // Detect framework
     const framework = detectFramework(projectPath);
     const spinner = ora(`Adding project ${chalk.cyan(projectName)}...`).start();
@@ -222,6 +231,7 @@ program
         path: projectPath,
         framework,
         command: options.command,
+        packageManager: options.pm && isPackageManager(options.pm) ? options.pm : undefined,
       }, { port: customPort });
       
       spinner.text = 'Updating hosts file...';
@@ -249,6 +259,10 @@ program
       console.log('');
       console.log(chalk.dim('  Id:'), chalk.white(projectId));
       console.log(chalk.dim('  Framework:'), chalk.white(framework));
+      console.log(
+        chalk.dim('  Package manager:'),
+        chalk.white(project.packageManager ?? `${detectPackageManager(projectPath)} (auto-detected)`)
+      );
       console.log(chalk.dim('  URL:'), chalk.green(`http://${projectName}.${tld}`));
       if (sslReady) {
         console.log(chalk.dim('  SSL URL:'), chalk.green(`https://${projectName}.${tld}`));

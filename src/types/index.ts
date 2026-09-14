@@ -2,12 +2,17 @@ export type ProjectStatus = 'running' | 'stopped' | 'error';
 
 export type Framework = 'next' | 'vite' | 'cra' | 'remix' | 'astro' | 'custom';
 
+export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
+
+export const PACKAGE_MANAGERS: PackageManager[] = ['npm', 'pnpm', 'yarn', 'bun'];
+
 export interface Project {
   name: string;
   path: string;
   port: number;
   framework: Framework;
   command?: string; // Custom start command override
+  packageManager?: PackageManager; // Override auto-detected package manager
   pid?: number; // Process ID when running
   createdAt: string;
   lastStarted?: string;
@@ -36,29 +41,37 @@ export const DEFAULT_CONFIG: PortPilotConfig = {
 };
 
 // Framework detection patterns
-export const FRAMEWORK_PATTERNS: Record<Framework, { files: string[]; devCommand: string }> = {
+// `script` is run with the project's package manager (npm/pnpm/yarn/bun) and
+// `args` are forwarded to it. PORT is also passed via env, which CRA reads.
+export const FRAMEWORK_PATTERNS: Record<Framework, { files: string[]; script: string; args: string }> = {
   next: {
     files: ['next.config.js', 'next.config.mjs', 'next.config.ts'],
-    devCommand: 'npm run dev -- -p {port}',
+    script: 'dev',
+    args: '-p {port}',
   },
   vite: {
     files: ['vite.config.js', 'vite.config.ts'],
-    devCommand: 'npm run dev -- --port {port}',
+    script: 'dev',
+    args: '--port {port}',
   },
   cra: {
     files: [], // Detected by react-scripts in package.json
-    devCommand: 'PORT={port} npm start',
+    script: 'start',
+    args: '',
   },
   remix: {
     files: ['remix.config.js'],
-    devCommand: 'npm run dev -- --port {port}',
+    script: 'dev',
+    args: '--port {port}',
   },
   astro: {
     files: ['astro.config.mjs', 'astro.config.ts'],
-    devCommand: 'npm run dev -- --port {port}',
+    script: 'dev',
+    args: '--port {port}',
   },
   custom: {
     files: [],
-    devCommand: 'npm run dev',
+    script: 'dev',
+    args: '',
   },
 };

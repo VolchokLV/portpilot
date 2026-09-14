@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Framework, FRAMEWORK_PATTERNS } from '../types/index.js';
+import { Framework, FRAMEWORK_PATTERNS, PackageManager, PACKAGE_MANAGERS } from '../types/index.js';
 
 export function detectFramework(projectPath: string): Framework {
   // Check for framework-specific config files
@@ -32,13 +32,74 @@ export function detectFramework(projectPath: string): Framework {
   return 'custom';
 }
 
-export function getDevCommand(framework: Framework, port: number, customCommand?: string): string {
-  if (customCommand) {
-    return customCommand.replace('{port}', port.toString());
+// Lockfiles checked in order; the first match wins
+const LOCKFILES: [string, PackageManager][] = [
+  ['pnpm-lock.yaml', 'pnpm'],
+  ['bun.lock', 'bun'],
+  ['bun.lockb', 'bun'],
+  ['yarn.lock', 'yarn'],
+  ['package-lock.json', 'npm'],
+];
+
+export function isPackageManager(value: string): value is PackageManager {
+  return (PACKAGE_MANAGERS as string[]).includes(value);
+}
+
+export function detectPackageManager(projectPath: string): PackageManager {
+  // 1. Corepack "packageManager" field, e.g. "pnpm@9.1.0"
+  const packageJsonPath = path.join(projectPath, 'package.json');
+  if (fs.existsSync(packageJsonPath)) {
+    try {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const name = typeof packageJson.packageManager === 'string'
+        ? packageJson.packageManager.split('@')[0]
+        : '';
+      if (isPackageManager(name)) {
+        return name;
+      }
+    } catch {
+      // Ignore parse errors
+    }
   }
-  
+
+  // 2. Lockfile in the project or a parent directory (monorepo workspaces)
+  let dir = path.resolve(projectPath);
+  while (true) {
+    for (const [file, manager] of LOCKFILES) {
+      if (fs.existsSync(path.join(dir, file))) {
+        return manager;
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return 'npm';
+}
+
+export function getDevCommand(
+  framework: Framework,
+  port: number,
+  customCommand?: string,
+  packageManager: PackageManager = 'npm'
+): string {
+  if (customCommand) {
+    return customCommand
+      .replace(/\{port\}/g, port.toString())
+      .replace(/\{pm\}/g, packageManager);
+  }
+
   const pattern = FRAMEWORK_PATTERNS[framework];
-  return pattern.devCommand.replace('{port}', port.toString());
+  const args = pattern.args.replace('{port}', port.toString());
+  if (!args) {
+    return `${packageManager} run ${pattern.script}`;
+  }
+
+  // npm needs "--" to forward args to the script; pnpm, yarn and bun forward them
+  // directly (pnpm would pass a literal "--" through to the dev server)
+  const separator = packageManager === 'npm' ? '-- ' : '';
+  return `${packageManager} run ${pattern.script} ${separator}${args}`;
 }
 
 export function validateProjectPath(projectPath: string): { valid: boolean; error?: string } {

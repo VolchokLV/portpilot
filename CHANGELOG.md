@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- pnpm, yarn and bun support: the package manager is auto-detected from the `packageManager` field in `package.json` or a lockfile (including parent directories for monorepos), falling back to npm
+- `--pm <manager>` flag on `portpilot add` to force a package manager
+- `{pm}` placeholder for custom commands
+- `portpilot add` output shows the package manager
+
+### Fixed
+- Create React App projects no longer use a `PORT={port}` shell prefix, which failed on Windows; the port is passed via the `PORT` env var
+- All `{port}` placeholders in custom commands are replaced, not just the first
+
 ## [0.2.1] - 2025-02-03
 
 ### Improved

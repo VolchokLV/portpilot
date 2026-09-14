@@ -1,0 +1,11 @@
+# PortPilot Progress
+
+## 2026-09-14
+- Added package manager support (npm, pnpm, yarn, bun)
+  - detectPackageManager() in src/core/framework.ts: packageManager field -> lockfiles (walks up parents) -> npm
+  - FRAMEWORK_PATTERNS now store script + args; getDevCommand() builds the command per package manager
+  - Optional Project.packageManager override via `portpilot add --pm <manager>`
+  - {pm} placeholder in custom commands
+  - CRA no longer uses `PORT={port}` shell prefix (broken on Windows); PORT env var is used
+- Verified: npm run build + npx tsc --noEmit pass; detection/command output checked with a scratch script
+- Docs: README, CHANGELOG.md, CLAUDE.md updated
