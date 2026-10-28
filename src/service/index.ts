@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
  * PortPilot Service
- * 
+ *
  * This runs as a background service to handle:
  * 1. Reverse proxy (routes *.test domains to correct ports)
- * 2. Auto-start projects marked for autostart
- * 
- * On Windows, this can be installed as a Windows Service.
- * On Linux/macOS, this can be managed via systemd/launchd.
+ * 2. Auto-start projects when autoStart is enabled (portpilot config --auto-start)
+ *
+ * Installed to run at login with "portpilot service install".
  */
 
 import { startProxyServer, stopProxyServer } from '../core/proxy.js';
@@ -18,69 +17,69 @@ import { getConfig } from '../core/config.js';
 const args = process.argv.slice(2);
 const httpsRedirect = args.includes('--https-redirect');
 
+function log(message: string): void {
+  console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
 async function startService() {
-  console.log('PortPilot Service starting...');
-  
-  // Start the proxy server
+  log('PortPilot Service starting...');
+
   const proxyResult = await startProxyServer({ httpsRedirect });
   if (!proxyResult.success) {
-    console.error(`Failed to start proxy: ${proxyResult.error}`);
+    log(`Failed to start proxy: ${proxyResult.error}`);
     process.exit(1);
   }
-  
-  console.log(`HTTP proxy running on port ${proxyResult.httpPort}`);
+
+  log(`HTTP proxy running on port ${proxyResult.httpPort}`);
   if (proxyResult.sslEnabled) {
-    console.log(`HTTPS proxy running on port ${proxyResult.httpsPort}`);
+    log(`HTTPS proxy running on port ${proxyResult.httpsPort}${proxyResult.http2 ? ' (HTTP/2)' : ''}`);
   }
-  
-  // Auto-start projects if enabled
+
+  // Signal readiness before auto-start, which can take a while per project
+  log('PortPilot Service ready');
+
   const config = getConfig();
   if (config.autoStart) {
-    console.log('Auto-starting projects...');
+    log('Auto-starting projects...');
     const projects = getAllProjectsWithStatus();
-    
+
     for (const project of projects) {
       if (project.status !== 'running') {
-        console.log(`  Starting ${project.name}...`);
+        log(`  Starting ${project.name}...`);
         const result = await startProject(project.name, { detached: true });
         if (result.success) {
-          console.log(`  ✓ ${project.name} started (PID: ${result.pid})`);
+          log(`  ✓ ${project.name} started (PID: ${result.pid})${result.warning ? ` - ${result.warning}` : ''}`);
         } else {
-          console.log(`  ✗ ${project.name} failed: ${result.error}`);
+          log(`  ✗ ${project.name} failed: ${result.error}`);
         }
       }
     }
   }
-  
-  console.log('PortPilot Service ready');
 }
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('Received SIGTERM, shutting down...');
+  log('Received SIGTERM, shutting down...');
   stopProxyServer();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down...');
+  log('Received SIGINT, shutting down...');
   stopProxyServer();
   process.exit(0);
 });
 
-// Handle uncaught errors
+// One bad upstream connection must not take every .test site down: log and keep serving
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
-  process.exit(1);
+  log(`Uncaught exception (proxy keeps running): ${error.stack ?? error.message}`);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection:', reason);
-  process.exit(1);
+  log(`Unhandled rejection (proxy keeps running): ${String(reason)}`);
 });
 
-// Start the service
 startService().catch((error) => {
-  console.error('Service failed to start:', error);
+  log(`Service failed to start: ${error}`);
   process.exit(1);
 });

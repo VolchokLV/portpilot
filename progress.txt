@@ -10,3 +10,23 @@
 - Verified: npm run build + npx tsc --noEmit pass; detection/command output checked with a scratch script
 - Docs: README, CHANGELOG.md, CLAUDE.md updated
 - Release prep: bumped to v0.3.0 (package.json + package-lock.json), CHANGELOG dated, added pnpm/yarn/bun keywords
+- Help text: package manager section in main help, examples + detection order in `add --help`, `{pm}` in -c description, proxy description clarified
+- `start` prints resolved command (new resolveDevCommand() in src/core/process.ts)
+
+## 2026-10-28 - v0.4.0
+- Multi-agent review (proxy/hydration, process/hosts/config, CLI/packaging, 2026 ecosystem) -> report artifact
+- Hydration fixes: proxy no longer appends error page to streaming responses; Origin rewrite for Next dev endpoints;
+  Vite allowed-hosts env var; service no longer exits on uncaught errors; ws socket cleanup; IPv6 (::1) target detection
+- Process safety: PID start-time verification (proc-info.ts), readiness wait + 'error' status, port-in-use preflight,
+  free-port assignment, --strictPort for Vite family, windowsHide, package manager on PATH check, lockfile walk boundaries
+- Hosts: encoding/EOL preserving, marker validation, backup, verified elevated writes, skip unchanged writes
+- Config: stable IDs + migration, lock file, corrupt-config recovery, case-insensitive/subdomain host matching
+- CLI: parseAsync, shared project resolution (cwd + parents), validated options, proxy action choices, set/info commands
+- Features: .localhost TLD, doctor, HTTP/2, MCP server, service install (login item), --json, uninstall, completion,
+  per-project env + Node pin, workspace --filter, git worktree subdomains, ui dashboard, log rotation
+- Modernized: Node >=22.12, http-proxy-3, commander 15, chalk 6, ora 9, conf 16, TypeScript 6
+- Repo: removed stale root config.ts/index.ts/proxy.ts and tsconfig.tsbuildinfo; package.json main/types/exports fixed
+- Tests: test/*.test.ts (33 passing) via `npm test`
+- Verified: npm run build, npx tsc --noEmit, npm test; read-only smoke runs of list/info/status/doctor against real config
+- Real config migrated in place (stable IDs added); backup taken before first run
+- NOT verified live (needs proxy/dev server restarts): HTTP/2 path, Origin rewrite with a real Next app, dashboard, service install

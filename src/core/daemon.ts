@@ -1,15 +1,16 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { fileURLToPath } from 'url';
+import { PORTPILOT_DIR } from './paths.js';
+import { isProcessAlive, isSameProcess, clearProcessCache } from './proc-info.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORTPILOT_DIR = path.join(os.homedir(), '.portpilot');
 const PROXY_PID_FILE = path.join(PORTPILOT_DIR, 'proxy.pid');
 const PROXY_LOG_FILE = path.join(PORTPILOT_DIR, 'proxy.log');
+const MAX_LOG_BYTES = 10 * 1024 * 1024;
 
 function ensureDir(): void {
   if (!fs.existsSync(PORTPILOT_DIR)) {
@@ -25,134 +26,142 @@ export function getProxyLogFile(): string {
   return PROXY_LOG_FILE;
 }
 
-export function isProxyDaemonRunning(): { running: boolean; pid?: number } {
-  if (!fs.existsSync(PROXY_PID_FILE)) {
-    return { running: false };
-  }
-  
+/** PID file holds {"pid":123,"startedAt":"..."}; older versions wrote just the number. */
+function readPidFile(): { pid: number; startedAt?: string } | undefined {
   try {
-    const pid = parseInt(fs.readFileSync(PROXY_PID_FILE, 'utf-8').trim(), 10);
-    
-    if (isNaN(pid)) {
-      return { running: false };
+    const raw = fs.readFileSync(PROXY_PID_FILE, 'utf-8').trim();
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      return typeof parsed.pid === 'number' ? parsed : undefined;
     }
-    
-    // Check if process is actually running
-    try {
-      process.kill(pid, 0); // Signal 0 just checks if process exists
-      return { running: true, pid };
-    } catch {
-      // Process not running, clean up stale PID file
-      fs.unlinkSync(PROXY_PID_FILE);
-      return { running: false };
-    }
+    const pid = parseInt(raw, 10);
+    return isNaN(pid) ? undefined : { pid };
   } catch {
-    return { running: false };
+    return undefined;
   }
 }
 
-export function startProxyDaemon(options: { httpsRedirect?: boolean } = {}): { 
-  success: boolean; 
-  pid?: number; 
+function removePidFile(): void {
+  try {
+    fs.unlinkSync(PROXY_PID_FILE);
+  } catch {
+    // Already gone
+  }
+}
+
+export function isProxyDaemonRunning(): { running: boolean; pid?: number } {
+  const info = readPidFile();
+  if (!info) {
+    return { running: false };
+  }
+
+  // Make sure the PID wasn't reused by some other process since
+  if (isSameProcess(info.pid, info.startedAt)) {
+    return { running: true, pid: info.pid };
+  }
+
+  removePidFile();
+  return { running: false };
+}
+
+export function startProxyDaemon(options: { httpsRedirect?: boolean } = {}): {
+  success: boolean;
+  pid?: number;
   error?: string;
   alreadyRunning?: boolean;
 } {
-  // Check if already running
   const status = isProxyDaemonRunning();
   if (status.running) {
     return { success: false, alreadyRunning: true, pid: status.pid, error: `Proxy already running (PID: ${status.pid})` };
   }
-  
+
   ensureDir();
-  
-  // Get path to service script
+
   const serviceScript = path.join(__dirname, '..', 'service', 'index.js');
-  
-  // On Windows, we need to use a different approach for detached processes
-  const isWindows = process.platform === 'win32';
-  
+
   try {
-    const logStream = fs.openSync(PROXY_LOG_FILE, 'a');
-    
+    try {
+      if (fs.statSync(PROXY_LOG_FILE).size > MAX_LOG_BYTES) {
+        fs.renameSync(PROXY_LOG_FILE, `${PROXY_LOG_FILE}.1`);
+      }
+    } catch {
+      // No log yet
+    }
+    const logFd = fs.openSync(PROXY_LOG_FILE, 'a');
+
     const args = [serviceScript];
     if (options.httpsRedirect) {
       args.push('--https-redirect');
     }
-    
+
     const child = spawn(process.execPath, args, {
       detached: true,
-      stdio: ['ignore', logStream, logStream],
+      stdio: ['ignore', logFd, logFd],
       windowsHide: true, // Hide console window on Windows
       env: {
         ...process.env,
         PORTPILOT_DAEMON: '1',
       },
     });
-    
+    fs.closeSync(logFd);
+
     if (!child.pid) {
       return { success: false, error: 'Failed to start proxy daemon' };
     }
-    
-    // Save PID
-    fs.writeFileSync(PROXY_PID_FILE, child.pid.toString());
-    
-    // Detach from parent
+
+    fs.writeFileSync(PROXY_PID_FILE, JSON.stringify({ pid: child.pid, startedAt: new Date().toISOString() }));
     child.unref();
-    
+
     return { success: true, pid: child.pid };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
 }
 
-export function stopProxyDaemon(): { success: boolean; error?: string; wasRunning: boolean } {
+/**
+ * Wait briefly for the daemon to either bind its ports or exit.
+ * Returns the tail of the log when it exited, so the CLI can say why.
+ */
+export async function waitForDaemon(pid: number, timeoutMs = 4000): Promise<{ alive: boolean; log?: string }> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) {
+      removePidFile();
+      return { alive: false, log: getProxyLogs(15) ?? undefined };
+    }
+    const log = getProxyLogs(5) ?? '';
+    if (log.includes('PortPilot Service ready')) return { alive: true };
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return { alive: isProcessAlive(pid) };
+}
+
+export async function stopProxyDaemon(): Promise<{ success: boolean; error?: string; wasRunning: boolean }> {
   const status = isProxyDaemonRunning();
-  
+
   if (!status.running || !status.pid) {
     return { success: true, wasRunning: false };
   }
-  
+
+  const pid = status.pid;
   try {
-    // Try graceful shutdown first
-    process.kill(status.pid, 'SIGTERM');
-    
-    // Give it a moment to stop
-    const startTime = Date.now();
-    const timeout = 5000; // 5 seconds
-    
-    while (Date.now() - startTime < timeout) {
-      try {
-        process.kill(status.pid, 0);
-        // Still running, busy wait briefly
-        const waitUntil = Date.now() + 100;
-        while (Date.now() < waitUntil) { /* busy wait */ }
-      } catch {
-        // Process stopped
-        break;
-      }
+    // On Windows this terminates immediately; elsewhere the service shuts down gracefully
+    process.kill(pid, 'SIGTERM');
+
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && isProcessAlive(pid)) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    
-    // Force kill if still running
-    try {
-      process.kill(status.pid, 0);
-      // Still running after timeout, force kill
-      process.kill(status.pid, 'SIGKILL');
-    } catch {
-      // Already dead, good
+
+    if (isProcessAlive(pid)) {
+      process.kill(pid, 'SIGKILL');
     }
-    
-    // Clean up PID file
-    if (fs.existsSync(PROXY_PID_FILE)) {
-      fs.unlinkSync(PROXY_PID_FILE);
-    }
-    
+
+    removePidFile();
+    clearProcessCache(pid);
     return { success: true, wasRunning: true };
   } catch (error) {
-    // Clean up PID file even on error
-    if (fs.existsSync(PROXY_PID_FILE)) {
-      fs.unlinkSync(PROXY_PID_FILE);
-    }
-    
+    removePidFile();
     return { success: false, error: (error as Error).message, wasRunning: true };
   }
 }
@@ -161,10 +170,11 @@ export function getProxyLogs(lines: number = 50): string | null {
   if (!fs.existsSync(PROXY_LOG_FILE)) {
     return null;
   }
-  
+
   try {
     const content = fs.readFileSync(PROXY_LOG_FILE, 'utf-8');
-    const allLines = content.split('\n');
+    const allLines = content.split(/\r?\n/);
+    if (allLines[allLines.length - 1] === '') allLines.pop();
     return allLines.slice(-lines).join('\n');
   } catch {
     return null;

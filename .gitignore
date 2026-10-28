@@ -33,3 +33,5 @@ RELEASE_PLAN.md
 
 # npm tarballs
 *.tgz
+# TypeScript incremental build info
+*.tsbuildinfo

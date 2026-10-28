@@ -1,13 +1,13 @@
-import { execSync, spawn } from 'child_process';
+import { execFileSync, execFile } from 'child_process';
+import { promisify } from 'util';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
-import https from 'https';
+import { CERTS_DIR, BIN_DIR } from './paths.js';
 
-const PORTPILOT_DIR = path.join(os.homedir(), '.portpilot');
-const CERTS_DIR = path.join(PORTPILOT_DIR, 'certs');
-const CA_DIR = path.join(PORTPILOT_DIR, 'ca');
-const MKCERT_DIR = path.join(PORTPILOT_DIR, 'bin');
+const execFileAsync = promisify(execFile);
+
+const MKCERT_VERSION = 'v1.4.4';
 
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) {
@@ -16,186 +16,185 @@ function ensureDir(dir: string): void {
 }
 
 function getMkcertPath(): string {
-  if (process.platform === 'win32') {
-    return path.join(MKCERT_DIR, 'mkcert.exe');
-  }
-  return path.join(MKCERT_DIR, 'mkcert');
+  return path.join(BIN_DIR, process.platform === 'win32' ? 'mkcert.exe' : 'mkcert');
 }
 
 export function isMkcertInstalled(): boolean {
   return fs.existsSync(getMkcertPath());
 }
 
-export function isCAInstalled(): boolean {
-  try {
-    const mkcertPath = getMkcertPath();
-    if (!fs.existsSync(mkcertPath)) return false;
-    
-    // Get mkcert's actual CAROOT (may be default or custom)
-    const caRoot = execSync(`"${mkcertPath}" -CAROOT`, { encoding: 'utf-8' }).trim();
-    const rootCA = path.join(caRoot, 'rootCA.pem');
-    
-    return fs.existsSync(rootCA);
-  } catch {
-    return false;
-  }
-}
+let caRootCache: string | null | undefined;
 
 function getCARoot(): string | null {
+  if (caRootCache !== undefined) return caRootCache;
   try {
     const mkcertPath = getMkcertPath();
     if (!fs.existsSync(mkcertPath)) return null;
-    
-    return execSync(`"${mkcertPath}" -CAROOT`, { encoding: 'utf-8' }).trim();
+    caRootCache = execFileSync(mkcertPath, ['-CAROOT'], { encoding: 'utf-8', windowsHide: true }).trim();
+    return caRootCache;
   } catch {
     return null;
   }
 }
 
+export function isCAInstalled(): boolean {
+  const caRoot = getCARoot();
+  return caRoot ? fs.existsSync(path.join(caRoot, 'rootCA.pem')) : false;
+}
+
+function assetName(): string {
+  const arch = process.arch === 'x64' ? 'amd64' : 'arm64';
+  const os = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'darwin' : 'linux';
+  return `mkcert-${MKCERT_VERSION}-${os}-${arch}${process.platform === 'win32' ? '.exe' : ''}`;
+}
+
+/** SHA-256 digest GitHub publishes for a release asset, if available. */
+async function getPublishedDigest(name: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(`https://api.github.com/repos/FiloSottile/mkcert/releases/tags/${MKCERT_VERSION}`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'portpilot' },
+    });
+    if (!response.ok) return undefined;
+    const release = (await response.json()) as { assets?: { name: string; digest?: string }[] };
+    const digest = release.assets?.find((a) => a.name === name)?.digest;
+    return digest?.startsWith('sha256:') ? digest.slice('sha256:'.length) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function downloadMkcert(
   onProgress?: (message: string) => void
-): Promise<{ success: boolean; error?: string }> {
-  ensureDir(MKCERT_DIR);
-  
-  const version = 'v1.4.4';
-  let filename: string;
-  let url: string;
-  
-  if (process.platform === 'win32') {
-    filename = 'mkcert.exe';
-    const arch = process.arch === 'x64' ? 'amd64' : 'arm64';
-    url = `https://github.com/FiloSottile/mkcert/releases/download/${version}/mkcert-${version}-windows-${arch}.exe`;
-  } else if (process.platform === 'darwin') {
-    const arch = process.arch === 'x64' ? 'amd64' : 'arm64';
-    filename = 'mkcert';
-    url = `https://github.com/FiloSottile/mkcert/releases/download/${version}/mkcert-${version}-darwin-${arch}`;
-  } else {
-    const arch = process.arch === 'x64' ? 'amd64' : 'arm64';
-    filename = 'mkcert';
-    url = `https://github.com/FiloSottile/mkcert/releases/download/${version}/mkcert-${version}-linux-${arch}`;
-  }
-  
-  const destPath = path.join(MKCERT_DIR, filename);
-  
+): Promise<{ success: boolean; error?: string; verified?: boolean }> {
+  ensureDir(BIN_DIR);
+
+  const name = assetName();
+  const url = `https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VERSION}/${name}`;
+  const destPath = getMkcertPath();
+
   onProgress?.(`Downloading mkcert from ${url}...`);
-  
-  return new Promise((resolve) => {
-    const file = fs.createWriteStream(destPath);
-    
-    const request = https.get(url, (response) => {
-      // Handle redirect
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        const redirectUrl = response.headers.location;
-        if (!redirectUrl) {
-          resolve({ success: false, error: 'Redirect without location header' });
-          return;
-        }
-        
-        https.get(redirectUrl, (redirectResponse) => {
-          redirectResponse.pipe(file);
-          
-          file.on('finish', () => {
-            file.close();
-            
-            // Make executable on Unix
-            if (process.platform !== 'win32') {
-              fs.chmodSync(destPath, '755');
-            }
-            
-            resolve({ success: true });
-          });
-        }).on('error', (err) => {
-          fs.unlinkSync(destPath);
-          resolve({ success: false, error: err.message });
-        });
-        return;
-      }
-      
-      if (response.statusCode !== 200) {
-        resolve({ success: false, error: `HTTP ${response.statusCode}` });
-        return;
-      }
-      
-      response.pipe(file);
-      
-      file.on('finish', () => {
-        file.close();
-        
-        if (process.platform !== 'win32') {
-          fs.chmodSync(destPath, '755');
-        }
-        
-        resolve({ success: true });
-      });
-    });
-    
-    request.on('error', (err) => {
-      fs.unlinkSync(destPath);
-      resolve({ success: false, error: err.message });
-    });
-  });
+
+  try {
+    // fetch follows GitHub's redirect chain to the CDN
+    const response = await fetch(url, { headers: { 'User-Agent': 'portpilot' } });
+    if (!response.ok) {
+      return { success: false, error: `Download failed: HTTP ${response.status}` };
+    }
+    const data = Buffer.from(await response.arrayBuffer());
+
+    onProgress?.('Verifying mkcert checksum...');
+    const expected = await getPublishedDigest(name);
+    const actual = crypto.createHash('sha256').update(data).digest('hex');
+    if (expected && expected !== actual) {
+      return { success: false, error: `Checksum mismatch for ${name} (expected ${expected}, got ${actual})` };
+    }
+
+    const tempPath = `${destPath}.download`;
+    fs.writeFileSync(tempPath, data);
+    if (process.platform !== 'win32') fs.chmodSync(tempPath, 0o755);
+    fs.renameSync(tempPath, destPath);
+    caRootCache = undefined;
+
+    return { success: true, verified: Boolean(expected) };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
 }
 
 export function installCA(): { success: boolean; error?: string; requiresAdmin?: boolean } {
   const mkcertPath = getMkcertPath();
-  
+
   if (!fs.existsSync(mkcertPath)) {
     return { success: false, error: 'mkcert not installed. Run portpilot init first.' };
   }
-  
+
   try {
     // Let mkcert use its default CAROOT location
-    execSync(`"${mkcertPath}" -install`, { 
-      encoding: 'utf-8',
-      stdio: 'inherit'
-    });
-    
+    execFileSync(mkcertPath, ['-install'], { stdio: 'inherit' });
+    caRootCache = undefined;
     return { success: true };
   } catch (error) {
     const message = (error as Error).message;
-    
+
     if (message.includes('Access is denied') || message.includes('permission')) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Admin privileges required to install CA',
-        requiresAdmin: true
+        requiresAdmin: true,
       };
     }
-    
+
     return { success: false, error: message };
   }
 }
 
-export function generateCertificate(
-  domain: string
-): { success: boolean; certPath?: string; keyPath?: string; error?: string } {
+export function uninstallCA(): { success: boolean; error?: string } {
   const mkcertPath = getMkcertPath();
-  
-  if (!fs.existsSync(mkcertPath)) {
+  if (!fs.existsSync(mkcertPath)) return { success: true };
+  try {
+    execFileSync(mkcertPath, ['-uninstall'], { stdio: 'inherit' });
+    caRootCache = undefined;
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+function certFiles(domain: string): { certPath: string; keyPath: string } {
+  return {
+    certPath: path.join(CERTS_DIR, `${domain}.pem`),
+    keyPath: path.join(CERTS_DIR, `${domain}-key.pem`),
+  };
+}
+
+const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+function mkcertArgs(domain: string): string[] {
+  const { certPath, keyPath } = certFiles(domain);
+  // The wildcard covers subdomains such as api.myapp.test
+  return ['-cert-file', certPath, '-key-file', keyPath, domain, `*.${domain}`];
+}
+
+type CertResult = { success: boolean; certPath?: string; keyPath?: string; error?: string };
+
+function precheck(domain: string, force: boolean): CertResult | undefined {
+  if (!DOMAIN_PATTERN.test(domain)) {
+    return { success: false, error: `Invalid domain "${domain}"` };
+  }
+  if (!fs.existsSync(getMkcertPath())) {
     return { success: false, error: 'mkcert not installed. Run portpilot init first.' };
   }
-  
   if (!isCAInstalled()) {
     return { success: false, error: 'CA not installed. Run portpilot init first.' };
   }
-  
   ensureDir(CERTS_DIR);
-  
-  const certPath = path.join(CERTS_DIR, `${domain}.pem`);
-  const keyPath = path.join(CERTS_DIR, `${domain}-key.pem`);
-  
-  // Skip if cert already exists
-  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-    return { success: true, certPath, keyPath };
+  const files = certFiles(domain);
+  if (!force && fs.existsSync(files.certPath) && fs.existsSync(files.keyPath)) {
+    return { success: true, ...files };
   }
-  
+  return undefined;
+}
+
+export function generateCertificate(domain: string, options: { force?: boolean } = {}): CertResult {
+  const early = precheck(domain, options.force ?? false);
+  if (early) return early;
+
   try {
-    execSync(
-      `"${mkcertPath}" -cert-file "${certPath}" -key-file "${keyPath}" "${domain}"`,
-      { encoding: 'utf-8', stdio: 'pipe' }
-    );
-    
-    return { success: true, certPath, keyPath };
+    execFileSync(getMkcertPath(), mkcertArgs(domain), { encoding: 'utf-8', stdio: 'pipe', windowsHide: true });
+    return { success: true, ...certFiles(domain) };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/** Non-blocking variant for use inside the running proxy (SNI callback). */
+export async function generateCertificateAsync(domain: string): Promise<CertResult> {
+  const early = precheck(domain, false);
+  if (early) return early;
+
+  try {
+    await execFileAsync(getMkcertPath(), mkcertArgs(domain), { windowsHide: true });
+    return { success: true, ...certFiles(domain) };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
@@ -206,40 +205,36 @@ export function generateCertificate(
  */
 export function generateAllProjectCertificates(
   projects: { name: string }[],
-  tld: string
+  tld: string,
+  options: { force?: boolean } = {}
 ): { success: string[]; failed: string[] } {
   const success: string[] = [];
   const failed: string[] = [];
-  
+
   for (const project of projects) {
     const domain = `${project.name}.${tld}`;
-    const result = generateCertificate(domain);
-    
+    const result = generateCertificate(domain, options);
+
     if (result.success) {
       success.push(domain);
     } else {
       failed.push(`${domain}: ${result.error}`);
     }
   }
-  
+
   return { success, failed };
 }
 
 export function getCertificatePaths(domain: string): { certPath: string; keyPath: string } | null {
-  const certPath = path.join(CERTS_DIR, `${domain}.pem`);
-  const keyPath = path.join(CERTS_DIR, `${domain}-key.pem`);
-  
-  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-    return { certPath, keyPath };
+  const files = certFiles(domain);
+  if (fs.existsSync(files.certPath) && fs.existsSync(files.keyPath)) {
+    return files;
   }
-  
   return null;
 }
 
 export function deleteCertificate(domain: string): void {
-  const certPath = path.join(CERTS_DIR, `${domain}.pem`);
-  const keyPath = path.join(CERTS_DIR, `${domain}-key.pem`);
-  
+  const { certPath, keyPath } = certFiles(domain);
   if (fs.existsSync(certPath)) fs.unlinkSync(certPath);
   if (fs.existsSync(keyPath)) fs.unlinkSync(keyPath);
 }
@@ -249,13 +244,13 @@ export function getSSLStatus(): {
   caInstalled: boolean;
   mkcertPath: string;
   certsDir: string;
-  caDir: string;
+  caDir: string | null;
 } {
   return {
     mkcertInstalled: isMkcertInstalled(),
     caInstalled: isCAInstalled(),
     mkcertPath: getMkcertPath(),
     certsDir: CERTS_DIR,
-    caDir: CA_DIR,
+    caDir: getCARoot(),
   };
 }
